@@ -1,0 +1,58 @@
+{
+  "name": "snapscene-app",
+  "version": "1.0.0",
+  "description": "UIT APP - Intelligent image analysis for software testing with Google Gemini",
+  "main": "index.js",
+  "scripts": {
+    "start": "electron .",
+    "dev": "electron . --dev",
+    "build": "electron-builder",
+    "clean": "rimraf dist node_modules package-lock.json",
+    "reinstall": "npm run clean && npm install"
+  },
+  "keywords": [
+    "electron",
+    "image-analysis", 
+    "testing",
+    "ai",
+    "gemini",
+    "software-testing"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "devDependencies": {
+    "electron": "^32.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "marked": "^15.0.7"
+  },
+  "build": {
+    "appId": "com.uitapp.desktop",
+    "productName": "UIT APP",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "index.js",
+      "src/**/*",
+      "package.json"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon.ico"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "assets/icon.icns"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "assets/icon.png"
+    }
+  }
+}

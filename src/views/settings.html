@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - UIT APP</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <header>
+        <h1>⚙️ Settings</h1>
+    </header>
+
+    <main class="settings-main">
+        <div class="settings-container card">
+            
+            <!-- API Configuration -->
+            <div class="settings-section">
+                <h3>🔑 API Configuration</h3>
+                
+                <div class="settings-group">
+                    <label for="apiKey">Google Gemini API Key:</label>
+                    <input type="password" id="apiKey" placeholder="Enter your Google Gemini API key">
+                    <small>Your API key is stored locally and securely.</small>
+                    <button id="testApiKey" class="test-button">🧪 Test API Key</button>
+                </div>
+            </div>
+
+            <!-- Appearance -->
+            <div class="settings-section">
+                <h3>🎨 Appearance</h3>
+                
+                <div class="settings-group">
+                    <label>Theme:</label>
+                    <div class="theme-toggle-container">
+                        <span>☀️ Light</span>
+                        <div class="toggle-switch" id="themeToggle" role="button" tabindex="0" aria-pressed="false">
+                            <div class="toggle-slider"></div>
+                        </div>
+                        <span>🌙 Dark</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Analysis Settings -->
+            <div class="settings-section">
+                <h3>🔬 Analysis Settings</h3>
+                
+                <div class="settings-group">
+                    <label for="defaultTestType">Default Test Type:</label>
+                    <select id="defaultTestType">
+                        <option value="general">🔍 General Analysis</option>
+                        <option value="functional">⚙️ Functional Testing</option>
+                        <option value="ui">🎨 UI Testing</option>
+                        <option value="performance">⚡ Performance Testing</option>
+                        <option value="security">🔒 Security Testing</option>
+                        <option value="accessibility">♿ Accessibility Testing</option>
+                        <option value="usability">👤 Usability Testing</option>
+                        <option value="compatibility">🔄 Compatibility Testing</option>
+                    </select>
+                </div>
+
+                <div class="settings-group">
+                    <label for="detailLevel">Detail Level:</label>
+                    <select id="detailLevel">
+                        <option value="basic">Basic (5-10 scenarios)</option>
+                        <option value="detailed">Detailed (10-20 scenarios)</option>
+                        <option value="comprehensive">Comprehensive (20+ scenarios)</option>
+                    </select>
+                </div>
+
+                <div class="settings-group">
+                    <label for="language">Response Language:</label>
+                    <select id="language">
+                        <option value="fr">🇫🇷 Français</option>
+                        <option value="en">🇺🇸 English</option>
+                        <option value="es">🇪🇸 Español</option>
+                        <option value="de">🇩🇪 Deutsch</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Data Management -->
+            <div class="settings-section">
+                <h3>💾 Data Management</h3>
+                
+                <div class="settings-group">
+                    <div class="button-row">
+                        <button id="exportSettings" class="secondary-button">📤 Export Settings</button>
+                        <button id="importSettings" class="secondary-button">📥 Import Settings</button>
+                    </div>
+                    <input type="file" id="importInput" accept=".json" style="display: none;">
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="settings-section">
+                <div class="button-row">
+                    <button id="saveSettings" class="primary-button">💾 Save Settings</button>
+                    <button id="resetSettings" class="danger-button">🔄 Reset to Default</button>
+                </div>
+            </div>
+
+            <!-- App Info -->
+            <div class="settings-section app-info">
+                <small>
+                    <strong>UIT APP</strong> v1.0.0<br>
+                    Powered by Google Gemini 2.5 Flash<br>
+                    <em>Intelligent image analysis for software testing</em>
+                </small>
+            </div>
+        </div>
+    </main>
+
+    <script src="../js/settings.js"></script>
+</body>
+</html>

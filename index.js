@@ -1,0 +1,207 @@
+const { app, BrowserWindow, ipcMain, dialog, Menu } = require('electron');
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+const fs = require('fs');
+const path = require('path');
+
+// Remove menu bar completely
+Menu.setApplicationMenu(null);
+
+let mainWindow;
+let settingsWindow;
+
+// Create main window
+function createMainWindow() {
+    mainWindow = new BrowserWindow({
+        width: 1200,
+        height: 800,
+        minWidth: 800,
+        minHeight: 600,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        },
+        autoHideMenuBar: true,
+        show: false
+    });
+
+    mainWindow.loadFile('src/views/index.html');
+
+    mainWindow.once('ready-to-show', () => {
+        mainWindow.show();
+    });
+
+    mainWindow.on('closed', () => {
+        mainWindow = null;
+    });
+}
+
+// Create settings window
+function createSettingsWindow() {
+    if (settingsWindow) {
+        settingsWindow.focus();
+        return;
+    }
+
+    settingsWindow = new BrowserWindow({
+        width: 500,
+        height: 600,
+        parent: mainWindow,
+        modal: true,
+        resizable: false,
+        autoHideMenuBar: true,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        },
+        show: false
+    });
+
+    settingsWindow.loadFile('src/views/settings.html');
+
+    settingsWindow.once('ready-to-show', () => {
+        settingsWindow.show();
+    });
+
+    settingsWindow.on('closed', () => {
+        settingsWindow = null;
+    });
+}
+
+// App ready
+app.whenReady().then(() => {
+    createMainWindow();
+
+    app.on('activate', () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+            createMainWindow();
+        }
+    });
+});
+
+app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
+});
+
+// IPC Handlers
+
+// Open settings
+ipcMain.on('open-settings', () => {
+    createSettingsWindow();
+});
+
+// Analyze image with Gemini
+ipcMain.on('analyze-image', async (event, data) => {
+    try {
+        console.log('🔍 Starting image analysis...');
+        
+        // Get API key from localStorage (will be sent from renderer)
+        const apiKey = data.apiKey;
+        
+        if (!apiKey) {
+            event.reply('analysis-result', { 
+                success: false, 
+                error: '❌ API key not found. Please set it in Settings.' 
+            });
+            return;
+        }
+
+        // Initialize Gemini
+        const genAI = new GoogleGenerativeAI(apiKey);
+        const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+        // Extract base64 data
+        const base64Data = data.imageData.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, '');
+
+        // Create prompt
+        const prompt = `Analyze this image and identify software testing scenarios.
+        
+Test Type: ${data.testType}
+Detail Level: ${data.detailLevel}
+
+Please provide:
+- Clear test scenarios with priorities (🔴 High, 🟡 Medium, 🟢 Low)
+- Step-by-step instructions for each test
+- Use markdown formatting
+- Be specific and actionable
+
+Response in French.`;
+
+        // Send to Gemini
+        const result = await model.generateContent([
+            { text: prompt },
+            { inlineData: { mimeType: "image/png", data: base64Data } }
+        ]);
+
+        const responseText = await result.response.text();
+        
+        console.log('✅ Analysis completed successfully');
+        
+        event.reply('analysis-result', { 
+            success: true, 
+            data: responseText 
+        });
+
+    } catch (error) {
+        console.error('❌ Analysis error:', error);
+        
+        let errorMessage = '❌ Analysis failed: ';
+        if (error.message.includes('API key')) {
+            errorMessage += 'Invalid API key. Check your settings.';
+        } else if (error.message.includes('quota')) {
+            errorMessage += 'API quota exceeded. Try again later.';
+        } else {
+            errorMessage += error.message;
+        }
+        
+        event.reply('analysis-result', { 
+            success: false, 
+            error: errorMessage 
+        });
+    }
+});
+
+// Save analysis to file
+ipcMain.on('save-analysis', async (event, data) => {
+    try {
+        const { filePath } = await dialog.showSaveDialog(mainWindow, {
+            title: "Save Analysis",
+            defaultPath: `analysis_${new Date().toISOString().split('T')[0]}.md`,
+            filters: [
+                { name: "Markdown files", extensions: ["md"] },
+                { name: "Text files", extensions: ["txt"] },
+                { name: "All files", extensions: ["*"] }
+            ]
+        });
+
+        if (!filePath) return;
+
+        const content = `# Image Analysis - UI Testing
+## Date: ${new Date().toLocaleString()}
+## Test Type: ${data.testType}
+
+### Analysis Results:
+${data.results}
+
+---
+Generated by UIT APP v1.0.0
+`;
+
+        fs.writeFileSync(filePath, content, 'utf-8');
+        
+        event.reply('save-complete', { 
+            success: true, 
+            path: filePath 
+        });
+
+    } catch (error) {
+        console.error('❌ Save error:', error);
+        event.reply('save-complete', { 
+            success: false, 
+            error: error.message 
+        });
+    }
+});
+
+console.log('🚀 UIT APP started successfully');
