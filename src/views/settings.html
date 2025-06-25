@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Settings - UIT APP</title>
+    <title>SnapScence - Settings</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -104,14 +104,18 @@
             <!-- App Info -->
             <div class="settings-section app-info">
                 <small>
-                    <strong>UIT APP</strong> v1.0.0<br>
-                    Powered by Google Gemini 2.5 Flash<br>
-                    <em>Intelligent image analysis for software testing</em>
+                    <strong id="appName"></strong> <span id="appVersion"></span><br>
+                    by <span id="appAuthor"></span><br>
+                    <em id="appDescription"></em>
                 </small>
             </div>
         </div>
     </main>
 
+    <!-- Load dependencies -->
+    <script src="../utils/storage.js"></script>
+    <script src="../utils/notifications.js"></script>
+    <script src="../js/themeManager.js"></script>
     <script src="../js/settings.js"></script>
 </body>
 </html>

@@ -78,9 +78,8 @@ class AppStorage {
 
     // History management
     static saveHistory(history) {
-        // Keep only last 10 items
-        const limitedHistory = history.slice(-10);
-        return Storage.save('history', limitedHistory);
+        // Always save complete history, never truncate
+        return Storage.save('history', history);
     }
 
     static loadHistory() {
@@ -94,6 +93,12 @@ class AppStorage {
             id: Date.now(),
             timestamp: new Date().toISOString()
         });
+        
+        // Keep maximum 100 entries in storage to prevent infinite growth
+        if (history.length > 100) {
+            history.splice(0, history.length - 100);
+        }
+        
         return this.saveHistory(history);
     }
 

@@ -1,100 +1,57 @@
-// Main application functionality (renderer.js)
-
+// Main application functionality
 const { ipcRenderer } = require('electron');
-const marked = require('marked');
-
 class MainApp {
     constructor() {
         this.currentImage = null;
         this.currentAnalysis = null;
         this.isAnalyzing = false;
-        this.settings = null;
-        
+        this.historySettings = {
+            maxEntries: 10,
+            showHistory: true
+        };
+        this.settings = {
+            testType: 'general',
+            detailLevel: 'detailed',
+            language: 'fr',
+            theme: 'light'
+        };
         this.initialize();
     }
-
     // Initialize application
-    async initialize() {
-        console.log('🚀 Initializing main app...');
-        
-        // Wait for utilities to load
-        await this.loadUtilities();
-        
-        // Load settings
+    initialize() {
         this.loadSettings();
-        
-        // Setup UI
         this.setupUI();
-        
-        // Setup event listeners
         this.setupEventListeners();
-        
-        // Load history
+        this.setupHistoryEventListeners();
+        this.syncHistorySelector();
         this.loadHistory();
-        
-        console.log('✅ Main app initialized');
     }
-
-    // Load utility scripts
-    async loadUtilities() {
-        return new Promise((resolve) => {
-            const scripts = [
-                '../utils/storage.js',
-                '../utils/notifications.js',
-                'themeManager.js'  // ← Your file name
-            ];
-
-            let loadedCount = 0;
-
-            scripts.forEach(src => {
-                const script = document.createElement('script');
-                script.src = src;
-                script.onload = () => {
-                    loadedCount++;
-                    if (loadedCount === scripts.length) {
-                        resolve();
-                    }
-                };
-                script.onerror = (e) => {
-                    console.error(`❌ Failed to load: ${src}`, e);
-                    loadedCount++;
-                    if (loadedCount === scripts.length) {
-                        resolve();
-                    }
-                };
-                document.head.appendChild(script);
-            });
-        });
-    }
-
     // Load settings
     loadSettings() {
-        this.settings = AppStorage.loadSettings();
-        console.log('📥 Loaded settings:', this.settings);
+        try {
+            if (typeof AppStorage !== 'undefined') {
+                this.settings = AppStorage.loadSettings();
+            }
+        } catch (error) {
+            // Silent fallback to defaults
+        }
     }
-
     // Setup UI elements
     setupUI() {
-        // Set initial values from settings
         const testTypeSelect = document.getElementById('testTypeSelector');
-        if (testTypeSelect && this.settings) {
+        if (testTypeSelect) {
             testTypeSelect.value = this.settings.testType || 'general';
         }
-
         const detailLevelSelect = document.getElementById('detailLevel');
-        if (detailLevelSelect && this.settings) {
+        if (detailLevelSelect) {
             detailLevelSelect.value = this.settings.detailLevel || 'detailed';
         }
-
-        // Setup drag and drop
         this.setupDragAndDrop();
     }
-
     // Setup drag and drop
     setupDragAndDrop() {
         const uploadArea = document.getElementById('uploadArea');
         if (!uploadArea) return;
-
         // Prevent default drag behaviors
         ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
             uploadArea.addEventListener(eventName, (e) => {
@@ -102,20 +59,17 @@ class MainApp {
                 e.stopPropagation();
             });
         });
-
         // Highlight drop area
         ['dragenter', 'dragover'].forEach(eventName => {
             uploadArea.addEventListener(eventName, () => {
                 uploadArea.classList.add('drag-over');
             });
         });
-
         ['dragleave', 'drop'].forEach(eventName => {
             uploadArea.addEventListener(eventName, () => {
                 uploadArea.classList.remove('drag-over');
             });
         });
-
         // Handle drop
         uploadArea.addEventListener('drop', (e) => {
             const files = e.dataTransfer.files;
@@ -123,26 +77,20 @@ class MainApp {
                 this.handleFileSelect(files[0]);
             }
         });
-
         // Handle click
         uploadArea.addEventListener('click', () => {
             document.getElementById('imageUpload').click();
         });
     }
-
     // Setup event listeners
     setupEventListeners() {
-        console.log('🔧 Setting up event listeners...');
-
         // Settings button
         const settingsButton = document.getElementById('openSettings');
         if (settingsButton) {
             settingsButton.addEventListener('click', () => {
-                console.log('⚙️ Opening settings...');
                 ipcRenderer.send('open-settings');
             });
         }
-
         // File input
         const imageUpload = document.getElementById('imageUpload');
         if (imageUpload) {
@@ -152,240 +100,154 @@ class MainApp {
                 }
             });
         }
-
         // Analyze button
         const analyzeButton = document.getElementById('analyzeButton');
         if (analyzeButton) {
             analyzeButton.addEventListener('click', () => {
-                console.log('🔍 Analyze button clicked');
-                this.analyzeImage();
+                if (!this.isAnalyzing && this.currentImage) {
+                    this.analyzeImage();
+                }
             });
         }
-
         // Clear button
         const clearButton = document.getElementById('clearButton');
         if (clearButton) {
             clearButton.addEventListener('click', () => {
-                console.log('🗑️ Clear button clicked');
                 this.clearImage();
             });
         }
-
         // Save button
         const saveButton = document.getElementById('saveButton');
         if (saveButton) {
-            saveButton.addEventListener('click', () => this.saveAnalysis());
+            saveButton.addEventListener('click', () => {
+                if (this.currentAnalysis) {
+                    this.saveAnalysis();
+                }
+            });
         }
-
         // Copy button
         const copyButton = document.getElementById('copyButton');
         if (copyButton) {
-            copyButton.addEventListener('click', () => this.copyResults());
-        }
-
-        // Settings change listeners
-        const testTypeSelect = document.getElementById('testTypeSelector');
-        if (testTypeSelect) {
-            testTypeSelect.addEventListener('change', (e) => {
-                this.settings.testType = e.target.value;
-                AppStorage.saveSettings(this.settings);
-            });
-        }
-
-        const detailLevelSelect = document.getElementById('detailLevel');
-        if (detailLevelSelect) {
-            detailLevelSelect.addEventListener('change', (e) => {
-                this.settings.detailLevel = e.target.value;
-                AppStorage.saveSettings(this.settings);
-            });
-        }
-
-        // IPC listeners
-        this.setupIpcListeners();
-
-        // Image click to change
-        this.setupImageClickToChange();
-
-        console.log('✅ Event listeners set up');
-    }
-
-    // Setup IPC listeners
-    setupIpcListeners() {
-        // Analysis result
-        ipcRenderer.on('analysis-result', (event, result) => {
-            console.log('📊 Analysis result received:', result);
-            this.handleAnalysisResult(result);
-        });
-
-        // Save complete
-        ipcRenderer.on('save-complete', (event, result) => {
-            if (result.success) {
-                showSuccess('💾 Analysis saved successfully!');
-            } else {
-                showError('❌ Failed to save analysis: ' + result.error);
-            }
-        });
-    }
-
-    // Setup image click to change
-    setupImageClickToChange() {
-        const previewImage = document.getElementById('previewImage');
-        if (previewImage) {
-            previewImage.addEventListener('click', () => {
-                if (this.currentImage) {
-                    document.getElementById('imageUpload').click();
+            copyButton.addEventListener('click', () => {
+                if (this.currentAnalysis) {
+                    this.copyToClipboard();
                 }
             });
-            previewImage.style.cursor = 'pointer';
-            previewImage.title = 'Click to change image';
         }
     }
-
     // Handle file selection
     handleFileSelect(file) {
-        console.log('📁 File selected:', file.name);
-
         // Validate file type
-        if (!file.type.startsWith('image/')) {
-            showError('⚠️ Please select a valid image file!');
+        const validTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+        if (!validTypes.includes(file.type)) {
+            this.showNotification('Please select a valid image file (PNG, JPG, JPEG, WEBP)', 'error');
             return;
         }
-
         // Validate file size (max 10MB)
         if (file.size > 10 * 1024 * 1024) {
-            showError('⚠️ File size must be less than 10MB!');
+            this.showNotification('File size too large. Please select an image under 10MB', 'error');
             return;
         }
-
-        console.log('🖼️ Image selected:', file.name, this.formatFileSize(file.size));
-
-        // Read file
         const reader = new FileReader();
         reader.onload = (e) => {
-            this.displayImage(e.target.result, file);
+            this.currentImage = e.target.result;
+            this.displayImagePreview(file);
+            this.enableAnalyzeButton();
         };
         reader.readAsDataURL(file);
     }
-
-    // Display image
-    displayImage(imageSrc, file) {
-        console.log('🖼️ Displaying image...');
-
-        this.currentImage = {
-            src: imageSrc,
-            name: file.name,
-            size: file.size
-        };
-
-        // Show preview
+    // Display image preview
+    displayImagePreview(file) {
+        const uploadArea = document.getElementById('uploadArea');
         const previewContainer = document.getElementById('imagePreviewContainer');
         const previewImage = document.getElementById('previewImage');
-        const uploadArea = document.getElementById('uploadArea');
-
-        if (previewImage) previewImage.src = imageSrc;
-        if (previewContainer) previewContainer.style.display = 'block';
+        const imageSize = document.getElementById('imageSize');
+        const imageDimensions = document.getElementById('imageDimensions');
         if (uploadArea) uploadArea.style.display = 'none';
-
-        // Update image info
-        this.updateImageInfo(file);
-
-        // Enable analyze button
+        if (previewContainer) previewContainer.style.display = 'block';
+        if (previewImage) previewImage.src = this.currentImage;
+        // Show file info
+        if (imageSize) {
+            imageSize.textContent = `${(file.size / 1024).toFixed(1)} KB`;
+        }
+        // Get image dimensions
+        if (imageDimensions && previewImage) {
+            previewImage.onload = () => {
+                imageDimensions.textContent = `${previewImage.naturalWidth} × ${previewImage.naturalHeight}`;
+            };
+        }
+        this.showNotification('Image loaded successfully! Ready for analysis.', 'success');
+    }
+    // Enable analyze button
+    enableAnalyzeButton() {
         const analyzeButton = document.getElementById('analyzeButton');
         if (analyzeButton) {
             analyzeButton.disabled = false;
-            console.log('✅ Analyze button enabled');
+            analyzeButton.textContent = '🔍 Analyze Image';
         }
-
-        // Setup click to change
-        this.setupImageClickToChange();
-
-        showSuccess('✅ Image loaded successfully!');
     }
-
-    // Update image info
-    updateImageInfo(file) {
-        const imageSize = document.getElementById('imageSize');
-        const imageDimensions = document.getElementById('imageDimensions');
-
-        if (imageSize) imageSize.textContent = this.formatFileSize(file.size);
-
-        // Get image dimensions
-        const img = new Image();
-        img.onload = () => {
-            if (imageDimensions) {
-                imageDimensions.textContent = `${img.width} × ${img.height}px`;
-            }
-        };
-        img.src = this.currentImage.src;
-    }
-
-    // Format file size
-    formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-
     // Analyze image
-    analyzeImage() {
-        console.log('🔍 Starting image analysis...');
-
-        if (!this.currentImage || this.isAnalyzing) {
-            console.log('❌ No image or already analyzing');
+    async analyzeImage() {
+        if (!this.currentImage) {
+            this.showNotification('Please select an image first', 'error');
             return;
         }
-
-        // Check API key
-        if (!this.settings || !this.settings.apiKey) {
-            showError('❌ API key not set. Please configure it in Settings.');
-            return;
-        }
-
         this.isAnalyzing = true;
-        this.updateAnalysisUI(true);
-
-        // Get configuration
-        const testType = document.getElementById('testTypeSelector').value || 'general';
-        const detailLevel = document.getElementById('detailLevel').value || 'detailed';
-
-        console.log('🔍 Analysis config:', { testType, detailLevel });
-
-        // Send to main process
-        ipcRenderer.send('analyze-image', {
-            imageData: this.currentImage.src,
-            apiKey: this.settings.apiKey,
-            testType: testType,
-            detailLevel: detailLevel
-        });
-
+        this.showProgress();
+        try {
+            const testType = document.getElementById('testTypeSelector')?.value || 'general';
+            const detailLevel = document.getElementById('detailLevel')?.value || 'detailed';
+            // Send to main process for analysis
+            ipcRenderer.send('analyze-image', {
+                imageData: this.currentImage,
+                testType: testType,
+                detailLevel: detailLevel
+            });
+            // Listen for response
+            ipcRenderer.once('analysis-result', (event, result) => {
+                this.isAnalyzing = false; // This will stop the progress simulation
+                if (result.success) {
+                    this.currentAnalysis = result.data;
+                    this.displayResults(result.data);
+                    this.showNotification('Analysis completed successfully!', 'success');
+                } else {
+                    this.showNotification(`Analysis failed: ${result.error}`, 'error');
+                }
+            });
+        } catch (error) {
+            this.isAnalyzing = false; // This will stop the progress simulation
+            this.showNotification(`Error: ${error.message}`, 'error');
+        }
+    }
+    // Show progress
+    showProgress() {
+        const analyzeButton = document.getElementById('analyzeButton');
+        const progressContainer = document.getElementById('progressContainer');
+        if (analyzeButton) {
+            analyzeButton.disabled = true;
+            analyzeButton.innerHTML = '<div class="loading-spinner"></div> Analyzing...';
+        }
+        if (progressContainer) {
+            progressContainer.style.display = 'block';
+        }
+        
         // Start progress simulation
         this.simulateProgress();
     }
-
-    // Update analysis UI
-    updateAnalysisUI(analyzing) {
+    // Hide progress
+    hideProgress() {
         const analyzeButton = document.getElementById('analyzeButton');
-        const analyzeText = document.getElementById('analyzeText');
-        const analyzeSpinner = document.getElementById('analyzeSpinner');
         const progressContainer = document.getElementById('progressContainer');
-
-        if (analyzing) {
-            if (analyzeButton) analyzeButton.disabled = true;
-            if (analyzeText) analyzeText.style.display = 'none';
-            if (analyzeSpinner) analyzeSpinner.style.display = 'inline-block';
-            if (progressContainer) progressContainer.style.display = 'block';
-        } else {
-            if (analyzeButton) analyzeButton.disabled = false;
-            if (analyzeText) analyzeText.style.display = 'inline';
-            if (analyzeSpinner) analyzeSpinner.style.display = 'none';
-            if (progressContainer) progressContainer.style.display = 'none';
-            this.isAnalyzing = false;
+        if (analyzeButton) {
+            analyzeButton.disabled = false;
+            analyzeButton.textContent = '🔍 Analyze Image';
+        }
+        if (progressContainer) {
+            progressContainer.style.display = 'none';
         }
     }
 
-    // Simulate progress
+    // Simulate dynamic progress
     simulateProgress() {
         const progressFill = document.getElementById('progressFill');
         const progressText = document.getElementById('progressText');
@@ -394,10 +256,10 @@ class MainApp {
 
         let progress = 0;
         const messages = [
-            'Analyzing image...',
-            'Identifying elements...',
-            'Generating test scenarios...',
-            'Finalizing analysis...'
+            '🔍 Analyzing image...',
+            '🔎 Identifying elements...',
+            '⚙️ Generating test scenarios...',
+            '✨ Finalizing analysis...'
         ];
 
         const interval = setInterval(() => {
@@ -410,255 +272,402 @@ class MainApp {
             if (!this.isAnalyzing) {
                 clearInterval(interval);
                 progressFill.style.width = '100%';
-                progressText.textContent = 'Analysis complete!';
+                progressText.textContent = '✅ Analysis complete!';
+                setTimeout(() => {
+                    this.hideProgress();
+                }, 500);
             }
         }, 500);
     }
 
-    // Handle analysis result
-    handleAnalysisResult(result) {
-        console.log('📊 Handling analysis result:', result);
-        this.updateAnalysisUI(false);
-
-        if (result.success) {
-            this.displayResults(result.data);
-            this.addToHistory();
-            showSuccess('✅ Analysis completed successfully!');
-        } else {
-            showError(result.error);
-        }
-    }
-
     // Display results
-    displayResults(text) {
-        console.log('📄 Displaying results...');
-        this.currentAnalysis = text;
-
+    displayResults(analysisData, addToHistoryFlag = true) {
         const resultCard = document.getElementById('resultCard');
         const testScenarios = document.getElementById('testScenarios');
-
-        if (testScenarios) {
-            testScenarios.innerHTML = marked.parse(text);
-        }
-
-        if (resultCard) {
-            resultCard.style.display = 'block';
-            resultCard.scrollIntoView({ behavior: 'smooth' });
-        }
-
-        // Enable buttons
         const saveButton = document.getElementById('saveButton');
         const copyButton = document.getElementById('copyButton');
+        if (resultCard) resultCard.style.display = 'block';
+        
+        // Update analysis summary with priority counts
+        this.updateAnalysisSummary(analysisData);
+        const analysisSummary = document.getElementById('analysisSummary');
+        if (analysisSummary) analysisSummary.style.display = 'block';
+        
+        if (testScenarios) {
+            // Use marked if available, otherwise show plain text
+            if (typeof marked !== 'undefined') {
+                testScenarios.innerHTML = marked.parse(analysisData);
+            } else {
+                testScenarios.innerHTML = `<pre>${analysisData}</pre>`;
+            }
+        }
         if (saveButton) saveButton.disabled = false;
         if (copyButton) copyButton.disabled = false;
-
-        // Generate summary
-        this.generateSummary(text);
+        
+        // Add to history only if flag is true (new analysis, not loading from history)
+        if (addToHistoryFlag) {
+            this.addToHistory(analysisData);
+        }
+        
+        // Scroll to results
+        if (resultCard) {
+            resultCard.scrollIntoView({ behavior: 'smooth' });
+        }
     }
-
-    // Generate analysis summary
-    generateSummary(text) {
-        const highPriority = (text.match(/🔴|high.*priority|priorité.*haute/gi) || []).length;
-        const mediumPriority = (text.match(/🟡|medium.*priority|priorité.*moyenne/gi) || []).length;
-        const lowPriority = (text.match(/🟢|low.*priority|priorité.*basse/gi) || []).length;
-        const totalScenarios = highPriority + mediumPriority + lowPriority;
-
-        // Update summary display
-        const totalEl = document.getElementById('totalScenarios');
-        const highEl = document.getElementById('highPriority');
-        const mediumEl = document.getElementById('mediumPriority');
-        const lowEl = document.getElementById('lowPriority');
-
-        if (totalEl) totalEl.textContent = totalScenarios || 'N/A';
-        if (highEl) highEl.textContent = highPriority;
-        if (mediumEl) mediumEl.textContent = mediumPriority;
-        if (lowEl) lowEl.textContent = lowPriority;
-
-        // Show summary
-        const summary = document.getElementById('analysisSummary');
-        if (summary) summary.style.display = 'block';
-    }
-
     // Clear image
     clearImage() {
-        console.log('🗑️ Clearing image and results...');
-        
         this.currentImage = null;
         this.currentAnalysis = null;
-
-        // Reset file input
-        const imageUpload = document.getElementById('imageUpload');
-        if (imageUpload) imageUpload.value = '';
-
-        // Show upload area
         const uploadArea = document.getElementById('uploadArea');
         const previewContainer = document.getElementById('imagePreviewContainer');
-        const previewImage = document.getElementById('previewImage');
-
-        if (uploadArea) uploadArea.style.display = 'flex';
-        if (previewContainer) previewContainer.style.display = 'none';
-        if (previewImage) previewImage.src = '';
-
-        // Clear results
         const resultCard = document.getElementById('resultCard');
-        const testScenarios = document.getElementById('testScenarios');
-        const summary = document.getElementById('analysisSummary');
-
-        if (resultCard) resultCard.style.display = 'none';
-        if (testScenarios) testScenarios.innerHTML = '';
-        if (summary) summary.style.display = 'none';
-
-        // Disable buttons
         const analyzeButton = document.getElementById('analyzeButton');
         const saveButton = document.getElementById('saveButton');
         const copyButton = document.getElementById('copyButton');
-
+        if (uploadArea) uploadArea.style.display = 'flex';
+        if (previewContainer) previewContainer.style.display = 'none';
+        if (resultCard) resultCard.style.display = 'none';
+        // Hide analysis summary too
+        const analysisSummary = document.getElementById('analysisSummary');
+        if (analysisSummary) analysisSummary.style.display = 'none';
         if (analyzeButton) analyzeButton.disabled = true;
         if (saveButton) saveButton.disabled = true;
         if (copyButton) copyButton.disabled = true;
-
-        showInfo('🗑️ Interface cleared!');
+        this.showNotification('🗑️ Image cleared. Ready for new analysis.', 'info');
     }
-
     // Save analysis
     saveAnalysis() {
-        if (!this.currentAnalysis) {
-            showWarning('⚠️ No analysis to save!');
-            return;
-        }
-
+        if (!this.currentAnalysis) return;
+        const testType = document.getElementById('testTypeSelector')?.value || 'general';
         ipcRenderer.send('save-analysis', {
-            results: this.currentAnalysis,
-            testType: document.getElementById('testTypeSelector').value,
-            timestamp: new Date().toISOString()
+            testType: testType,
+            results: this.currentAnalysis
+        });
+        ipcRenderer.once('save-complete', (event, result) => {
+            if (result.success) {
+                this.showNotification('💾 Analysis saved successfully!', 'success');
+            } else {
+                this.showNotification('Failed to save analysis', 'error');
+            }
         });
     }
-
-    // Copy results
-    copyResults() {
-        if (!this.currentAnalysis) {
-            showWarning('⚠️ No results to copy!');
-            return;
+    // Copy to clipboard
+    async copyToClipboard() {
+        if (!this.currentAnalysis) return;
+        try {
+            await navigator.clipboard.writeText(this.currentAnalysis);
+            this.showNotification('📋 Analysis copied to clipboard!', 'success');
+        } catch (error) {
+            this.showNotification('Failed to copy to clipboard', 'error');
         }
-
-        navigator.clipboard.writeText(this.currentAnalysis).then(() => {
-            showSuccess('📋 Results copied to clipboard!');
-        }).catch(() => {
-            showError('❌ Failed to copy results');
-        });
+    }
+    // Show notification
+    showNotification(message, type = 'info') {
+        try {
+            if (typeof showNotification !== 'undefined') {
+                showNotification(message, type);
+            }
+        } catch (error) {
+            // Silent fallback
+        }
     }
 
-    // Add to history
-    addToHistory() {
-        if (!this.currentImage || !this.currentAnalysis) return;
-
-        AppStorage.addToHistory({
-            image: this.currentImage,
-            analysis: this.currentAnalysis,
-            testType: document.getElementById('testTypeSelector').value,
-            detailLevel: document.getElementById('detailLevel').value
-        });
-
-        this.loadHistory();
-    }
-
-    // Load and display history
+    // History management methods
     loadHistory() {
-        const history = AppStorage.loadHistory();
-        const historyCard = document.getElementById('historyCard');
-        const historyList = document.getElementById('historyList');
-
-        if (!historyCard || !historyList) return;
-
-        if (history.length > 0) {
-            historyCard.style.display = 'block';
-            historyList.innerHTML = '';
-
-            history.slice(-5).reverse().forEach(item => {
-                const historyItem = this.createHistoryItem(item);
-                historyList.appendChild(historyItem);
-            });
-        } else {
-            historyCard.style.display = 'none';
+        try {
+            if (typeof AppStorage !== 'undefined') {
+                const history = AppStorage.loadHistory();
+                this.displayHistory(history);
+                
+                // Show history section if there are entries
+                const historyCard = document.getElementById('historyCard');
+                if (historyCard && history.length > 0) {
+                    historyCard.style.display = 'block';
+                }
+            }
+        } catch (error) {
+            console.error('Error loading history:', error);
         }
     }
 
-    // Create history item element
-    createHistoryItem(item) {
-        const div = document.createElement('div');
-        div.className = 'history-item';
+    displayHistory(history) {
+    const historyList = document.getElementById('historyList');
+    if (!historyList) return;
 
-        const date = new Date(item.timestamp).toLocaleString();
-        const scenarioCount = this.countScenarios(item.analysis);
+    if (history.length === 0) {
+        historyList.innerHTML = '<div class="history-empty">No analysis history yet</div>';
+        return;
+    }
 
-        div.innerHTML = `
-            <div class="history-content">
-                <strong>${date}</strong><br>
-                <small>Type: ${item.testType} | Scenarios: ${scenarioCount}</small>
+    // Sort by timestamp (newest first)
+    const sortedHistory = history.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+    
+    // Limit display to current maxEntries setting
+    const limitedHistory = sortedHistory.slice(0, this.historySettings.maxEntries);
+    console.log('📊 Displaying', limitedHistory.length, 'of', sortedHistory.length, 'history entries (limit:', this.historySettings.maxEntries + ')');
+    
+    // Update height based on number of entries to display
+    this.updateHistoryListHeight();
+    
+    historyList.innerHTML = limitedHistory.map(item => {
+        const date = new Date(item.timestamp);
+        const formattedDate = date.toLocaleDateString('fr-FR') + ' ' + date.toLocaleTimeString('fr-FR');
+        
+        // Count scenarios properly using the same logic as analysis results
+        const priorities = this.parseAnalysisPriorities(item.results || '');
+        
+        return `
+            <div class="history-item" data-id="${item.id}">
+                <div class="history-content" onclick="window.mainApp.loadHistoryItem(${item.id})">
+                    <div class="history-info">
+                        <div class="history-date">${formattedDate}</div>
+                        <div class="history-meta">Type: ${item.testType || 'general'} | Scénarios: ${priorities.total}</div>
+                    </div>
+                </div>
+                <button class="history-delete" onclick="window.mainApp.deleteHistoryItem(${item.id}); event.stopPropagation();" title="Delete">✕</button>
             </div>
-            <button class="history-delete" title="Delete this item">✕</button>
         `;
+    }).join('');
+}
 
-        // Load on content click
-        div.querySelector('.history-content').addEventListener('click', () => {
-            this.loadHistoryItem(item);
-        });
-
-        // Delete on button click
-        div.querySelector('.history-delete').addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.deleteHistoryItem(item.id);
-        });
-
-        return div;
-    }
-
-    // Count scenarios in text
     countScenarios(text) {
-        const high = (text.match(/🔴|high.*priority|priorité.*haute/gi) || []).length;
-        const medium = (text.match(/🟡|medium.*priority|priorité.*moyenne/gi) || []).length;
-        const low = (text.match(/🟢|low.*priority|priorité.*basse/gi) || []).length;
-        return high + medium + low || 'N/A';
+        if (!text) return 0;
+        // Count various patterns that indicate test scenarios
+        const patterns = [
+            /\d+\./g, // Numbered lists
+            /[\*\-]\s/g, // Bullet points
+            /test case/gi,
+            /scénario/gi,
+            /scenario/gi
+        ];
+        
+        let count = 0;
+        patterns.forEach(pattern => {
+            const matches = text.match(pattern);
+            if (matches) count = Math.max(count, matches.length);
+        });
+        
+        return count || 'N/A';
     }
 
-    // Load history item
-    loadHistoryItem(item) {
-        if (item.image) {
-            this.currentImage = item.image;
-            this.displayImage(item.image.src, { 
-                name: item.image.name, 
-                size: item.image.size 
-            });
+    // Update history list height based on selected entries
+    updateHistoryListHeight() {
+        const historyList = document.getElementById('historyList');
+        if (!historyList) return;
+        
+        // Dynamic height calculation:
+        // 5 entries = 400px (base)
+        // 10 entries = 800px (x2)  
+        // 50 entries = 1200px (x3)
+        // 100 entries = 1600px (x4)
+        let newHeight;
+        if (this.historySettings.maxEntries <= 5) {
+            newHeight = 400;
+        } else if (this.historySettings.maxEntries <= 10) {
+            newHeight = 800;
+        } else if (this.historySettings.maxEntries <= 50) {
+            newHeight = 1200;
+        } else {
+            newHeight = 1600;
         }
-
-        if (item.analysis) {
-            this.displayResults(item.analysis);
-        }
-
-        showInfo('📜 History item loaded!');
+        
+        historyList.style.maxHeight = newHeight + 'px';
+        console.log('📊 Updated history height to', newHeight + 'px', 'for', this.historySettings.maxEntries, 'entries');
     }
 
-    // Delete history item
+    formatHistoryText(text) {
+        if (typeof marked !== 'undefined') {
+            return marked.parse(text);
+        }
+        return `<pre>${text}</pre>`;
+    }
+
+    addToHistory(analysisData) {
+        try {
+            if (typeof AppStorage !== 'undefined') {
+                const testType = document.getElementById('testTypeSelector')?.value || 'general';
+                const historyItem = {
+                    testType: testType,
+                    results: analysisData,
+                    imageData: this.currentImage, // Store the image data
+                    timestamp: new Date().toISOString()
+                };
+                
+                AppStorage.addToHistory(historyItem); // Remove the limit parameter
+                this.loadHistory(); // Refresh display
+            }
+        } catch (error) {
+            console.error('Error adding to history:', error);
+        }
+    }
+
     deleteHistoryItem(id) {
-        if (confirm('Are you sure you want to delete this history item?')) {
-            AppStorage.removeFromHistory(id);
-            this.loadHistory();
-            showSuccess('🗑️ History item deleted!');
+        try {
+            if (typeof AppStorage !== 'undefined') {
+                AppStorage.removeFromHistory(id);
+                this.loadHistory(); // Refresh display
+                this.showNotification('History item deleted', 'info');
+            }
+        } catch (error) {
+            console.error('Error deleting history item:', error);
         }
+    }
+
+loadHistoryItem(id) {
+    try {
+        if (typeof AppStorage !== 'undefined') {
+            const history = AppStorage.loadHistory();
+            const item = history.find(h => h.id === id);
+            
+            if (item) {
+                // Load image into Upload Image section
+                if (item.imageData) {
+                    this.currentImage = item.imageData;
+                    this.currentAnalysis = item.results;
+                    
+                    // Show image preview
+                    const uploadArea = document.getElementById('uploadArea');
+                    const previewContainer = document.getElementById('imagePreviewContainer');
+                    const previewImage = document.getElementById('previewImage');
+                    
+                    if (uploadArea) uploadArea.style.display = 'none';
+                    if (previewContainer) previewContainer.style.display = 'block';
+                    if (previewImage) previewImage.src = item.imageData;
+                    
+                    // Enable buttons
+                    const analyzeButton = document.getElementById('analyzeButton');
+                    const saveButton = document.getElementById('saveButton');
+                    const copyButton = document.getElementById('copyButton');
+                    if (analyzeButton) analyzeButton.disabled = false;
+                    if (saveButton) saveButton.disabled = false;
+                    if (copyButton) copyButton.disabled = false;
+                }
+                
+                // Load analysis into Analysis Results section
+                if (item.results) {
+                    this.displayResults(item.results, false); // Don't add to history when loading from history
+                }
+                
+                this.showNotification('📜 History item loaded!', 'success');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading history item:', error);
     }
 }
 
-// Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log('🚀 DOM loaded, starting app...');
-    try {
-        window.mainApp = new MainApp();
-    } catch (error) {
-        console.error('❌ Failed to initialize app:', error);
+    clearHistory() {
+        try {
+            if (typeof AppStorage !== 'undefined') {
+                AppStorage.saveHistory([]);
+                this.loadHistory();
+                this.showNotification('History cleared', 'info');
+            }
+        } catch (error) {
+            console.error('Error clearing history:', error);
+        }
     }
-});
 
-// Make available globally
+    // Setup history event listeners
+    setupHistoryEventListeners() {
+        // History controls
+        const historyLimit = document.getElementById('historyLimit');
+        if (historyLimit) {
+            historyLimit.addEventListener('change', (e) => {
+                // console.log('📊 History limit changed from', this.historySettings.maxEntries, 'to', e.target.value);
+                this.historySettings.maxEntries = parseInt(e.target.value);
+                this.updateHistoryLimit();
+            });
+        }
+        
+        const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+        if (clearHistoryBtn) {
+            clearHistoryBtn.addEventListener('click', () => {
+                if (confirm('Are you sure you want to clear all analysis history?')) {
+                    this.clearHistory();
+                }
+            });
+        }
+    }
+
+    // Update history limit based on selector
+    updateHistoryLimit() {
+        try {
+            if (typeof AppStorage !== 'undefined') {
+                // console.log('📊 Updating history limit to:', this.historySettings.maxEntries);
+                this.loadHistory(); // Just reload with new limit, don't modify stored history
+            }
+        } catch (error) {
+            console.error('Error updating history limit:', error);
+        }
+    }
+
+    // Sync history selector with JS settings
+    syncHistorySelector() {
+        const historyLimit = document.getElementById('historyLimit');
+        if (historyLimit) {
+            historyLimit.value = this.historySettings.maxEntries.toString();
+        }
+    }
+
+    // Analysis summary methods
+    updateAnalysisSummary(analysisData) {
+        const totalScenarios = document.getElementById('totalScenarios');
+        const highPriority = document.getElementById('highPriority');
+        const mediumPriority = document.getElementById('mediumPriority');
+        const lowPriority = document.getElementById('lowPriority');
+
+        // Parse analysis data to count priorities
+        const priorities = this.parseAnalysisPriorities(analysisData);
+        
+        if (totalScenarios) totalScenarios.textContent = priorities.total;
+        if (highPriority) highPriority.textContent = priorities.high;
+        if (mediumPriority) mediumPriority.textContent = priorities.medium;
+        if (lowPriority) lowPriority.textContent = priorities.low;
+    }
+
+    parseAnalysisPriorities(text) {
+        if (!text) return { total: 0, high: 0, medium: 0, low: 0 };
+        
+        // More precise priority detection - count actual scenarios with priorities
+        const lines = text.split('\n');
+        let highCount = 0;
+        let mediumCount = 0;
+        let lowCount = 0;
+        
+        // Count scenarios with priorities line by line
+        lines.forEach(line => {
+            const trimmedLine = line.trim().toLowerCase();
+            if (trimmedLine.includes('🔴') || trimmedLine.includes('priorité haute') || trimmedLine.includes('high priority') || trimmedLine.includes('critique')) {
+                highCount++;
+            } else if (trimmedLine.includes('🟡') || trimmedLine.includes('priorité moyenne') || trimmedLine.includes('medium priority') || trimmedLine.includes('moyenne')) {
+                mediumCount++;
+            } else if (trimmedLine.includes('🟢') || trimmedLine.includes('priorité basse') || trimmedLine.includes('low priority') || trimmedLine.includes('faible')) {
+                lowCount++;
+            }
+        });
+        
+        // Calculate total: sum of priorities or fallback to numbered scenarios
+        let total = highCount + mediumCount + lowCount;
+        if (total === 0) {
+            const numberedScenarios = (text.match(/^\d+\./gm) || []).length;
+            const bulletScenarios = (text.match(/^[\*\-]\s/gm) || []).length;
+            total = Math.max(numberedScenarios, bulletScenarios);
+        }
+        
+        return {
+            total: total,
+            high: highCount,
+            medium: mediumCount,
+            low: lowCount
+        };
+    }
+}
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    window.mainApp = new MainApp();
+});
+// Export for global access
 if (typeof window !== 'undefined') {
     window.MainApp = MainApp;
 }

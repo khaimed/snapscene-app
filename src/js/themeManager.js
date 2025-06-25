@@ -1,29 +1,90 @@
-// Theme management system
-
-class ThemeManager {
+// Unified Theme Manager - Works for all windows
+// Handles theme loading, switching, and persistence across the entire app
+class UnifiedThemeManager {
     constructor() {
         this.currentTheme = 'light';
+        this.isMainWindow = !document.getElementById('themeToggle'); // Settings has toggle, main doesn't
         this.initialize();
     }
-
-    // Initialize theme system
+    // Initialize theme system for any window
     initialize() {
-        // Load saved theme
-        this.currentTheme = AppStorage.loadTheme();
-        
-        // Apply theme
-        this.applyTheme(this.currentTheme);
-        
-        // Listen for system theme changes
-        this.watchSystemTheme();
-        
-        console.log(`🎨 Theme initialized: ${this.currentTheme}`);
+        ;
+        // Load theme from unified config
+        this.loadThemeFromConfig();
+        // Setup window-specific features
+        if (this.isMainWindow) {
+            this.setupMainWindow();
+        } else {
+            this.setupSettingsWindow();
+        }
+        // Listen for theme changes from other windows
+        this.setupThemeListener();
     }
-
-    // Apply theme to document
+    // Load theme from unified config via IPC
+    loadThemeFromConfig() {
+        try {
+            const { ipcRenderer } = require('electron');
+            ipcRenderer.send('get-settings');
+            ipcRenderer.once('send-settings', (event, settings) => {
+                const theme = settings.theme || 'light';
+                ;
+                this.applyTheme(theme);
+                // Update toggle button state if in settings
+                if (!this.isMainWindow) {
+                    this.updateToggleButton();
+                }
+            });
+        } catch (error) {
+            console.error('IPC not available, using default theme');
+            this.applyTheme('light');
+        }
+    }
+    // Setup main window theme features
+    setupMainWindow() {
+        ;
+    }
+    // Setup settings window theme features (toggle button)
+    setupSettingsWindow() {
+        ;
+        // Wait for DOM elements to load
+        setTimeout(() => {
+            this.setupThemeToggle();
+        }, 1000);
+    }
+    // Setup theme toggle button (settings window only)
+    setupThemeToggle() {
+        const themeToggle = document.getElementById('themeToggle');
+        if (!themeToggle) {
+            console.error('❌ Theme toggle button not found');
+            return;
+        }
+        ;
+        // Remove any existing listeners by cloning
+        const newToggle = themeToggle.cloneNode(true);
+        themeToggle.parentNode.replaceChild(newToggle, themeToggle);
+        // Add click handler
+        newToggle.addEventListener('click', () => {
+            this.toggleTheme();
+        });
+        // Set initial visual state
+        this.updateToggleButton();
+    }
+    // Toggle between light and dark themes
+    toggleTheme() {
+        const newTheme = this.currentTheme === 'light' ? 'dark' : 'light';
+        ;
+        // Apply theme locally
+        this.applyTheme(newTheme);
+        // Save to config and broadcast to all windows
+        this.saveAndBroadcastTheme(newTheme);
+        // Update toggle button
+        if (!this.isMainWindow) {
+            this.updateToggleButton();
+        }
+    }
+    // Apply theme to current window
     applyTheme(theme) {
         this.currentTheme = theme;
-        
         if (theme === 'dark') {
             document.documentElement.setAttribute('data-theme', 'dark');
             document.body.classList.add('dark-theme');
@@ -33,199 +94,94 @@ class ThemeManager {
             document.body.classList.add('light-theme');
             document.body.classList.remove('dark-theme');
         }
-
-        // Save theme
-        AppStorage.saveTheme(theme);
-        
-        // Trigger theme change event
-        this.dispatchThemeChange(theme);
-        
-        console.log(`🎨 Theme applied: ${theme}`);
+        // console.log(`Applied ${theme} theme to ${this.isMainWindow ? 'main' : 'settings'} window`);
     }
-
-    // Toggle between light and dark
-    toggle() {
-        const newTheme = this.currentTheme === 'light' ? 'dark' : 'light';
-        this.applyTheme(newTheme);
-        return newTheme;
+    // Update toggle button visual state (settings window only)
+    updateToggleButton() {
+        if (this.isMainWindow) return;
+        const themeToggle = document.getElementById('themeToggle');
+        if (themeToggle) {
+            if (this.currentTheme === 'dark') {
+                themeToggle.classList.add('active');
+            } else {
+                themeToggle.classList.remove('active');
+            }
+        }
     }
-
-    // Set specific theme
+    // Save theme and broadcast to all windows
+    saveAndBroadcastTheme(theme) {
+        try {
+            const { ipcRenderer } = require('electron');
+            // Save to unified config
+            ipcRenderer.send('save-settings', { theme });
+            // Broadcast to all windows
+            ipcRenderer.send('broadcast-theme-change', theme);
+            ;
+        } catch (error) {
+            console.error('Fallback: saving to localStorage');
+            localStorage.setItem('theme', theme);
+        }
+    }
+    // Listen for theme changes from other windows
+    setupThemeListener() {
+        try {
+            const { ipcRenderer } = require('electron');
+            ipcRenderer.on('theme-changed', (event, newTheme) => {
+                ;
+                this.applyTheme(newTheme);
+                if (!this.isMainWindow) {
+                    this.updateToggleButton();
+                }
+            });
+        } catch (error) {
+            console.error('IPC theme listener not available');
+        }
+    }
+    // Public API methods
     setTheme(theme) {
         if (['light', 'dark'].includes(theme)) {
             this.applyTheme(theme);
-        } else {
-            console.warn(`⚠️ Invalid theme: ${theme}`);
         }
     }
-
-    // Get current theme
     getCurrentTheme() {
         return this.currentTheme;
     }
-
-    // Check if dark theme is active
     isDark() {
         return this.currentTheme === 'dark';
     }
-
-    // Check if light theme is active
     isLight() {
         return this.currentTheme === 'light';
     }
-
-    // Watch for system theme changes
-    watchSystemTheme() {
-        if (window.matchMedia) {
-            const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-            mediaQuery.addEventListener('change', (e) => {
-                // Auto-switch theme based on system preference (optional)
-                // Uncomment if you want automatic theme switching
-                // const systemTheme = e.matches ? 'dark' : 'light';
-                // this.applyTheme(systemTheme);
-            });
-        }
-    }
-
-    // Dispatch theme change event
-    dispatchThemeChange(theme) {
-        const event = new CustomEvent('themeChanged', {
-            detail: { theme, isDark: theme === 'dark' }
-        });
-        document.dispatchEvent(event);
-    }
-
-    // Get system preferred theme
-    getSystemTheme() {
-        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-            return 'dark';
-        }
-        return 'light';
-    }
-
-    // Use system theme
-    useSystemTheme() {
-        const systemTheme = this.getSystemTheme();
-        this.applyTheme(systemTheme);
-        return systemTheme;
-    }
-
-    // Setup theme toggle button
-    setupToggleButton(buttonSelector) {
-        const button = document.querySelector(buttonSelector);
-        if (!button) {
-            console.warn(`⚠️ Theme toggle button not found: ${buttonSelector}`);
-            return;
-        }
-
-        // Set initial state
-        this.updateToggleButton(button);
-
-        // Add click handler
-        button.addEventListener('click', () => {
-            this.toggle();
-            this.updateToggleButton(button);
-        });
-
-        // Listen for theme changes
-        document.addEventListener('themeChanged', () => {
-            this.updateToggleButton(button);
-        });
-    }
-
-    // Update toggle button appearance
-    updateToggleButton(button) {
-        if (this.isDark()) {
-            button.classList.add('active');
-            button.setAttribute('aria-pressed', 'true');
-            button.title = 'Switch to light mode';
-        } else {
-            button.classList.remove('active');
-            button.setAttribute('aria-pressed', 'false');
-            button.title = 'Switch to dark mode';
-        }
-    }
-
-    // Setup automatic theme persistence
-    setupPersistence() {
-        // Save theme when page is about to unload
-        window.addEventListener('beforeunload', () => {
-            AppStorage.saveTheme(this.currentTheme);
-        });
-    }
-
-    // Reset theme to default
-    reset() {
-        this.applyTheme('light');
-    }
-
-    // Get theme colors for current theme
-    getThemeColors() {
-        const colors = {
-            light: {
-                primary: '#81e6d9',
-                secondary: '#81B2E6',
-                background: '#ffffff',
-                surface: '#f8f9fa',
-                text: '#2d3748',
-                textSecondary: '#4a5568'
-            },
-            dark: {
-                primary: '#81e6d9',
-                secondary: '#81B2E6',
-                background: '#1a202c',
-                surface: '#2d3748',
-                text: '#f7fafc',
-                textSecondary: '#e2e8f0'
-            }
-        };
-        return colors[this.currentTheme];
-    }
 }
-
-// Create global instance
-const themeManager = new ThemeManager();
-
-// Helper functions
+// Initialize theme manager when DOM loads
+document.addEventListener('DOMContentLoaded', () => {
+    ;
+    window.themeManager = new UnifiedThemeManager();
+});
+// Global convenience functions for backward compatibility
 function toggleTheme() {
-    return themeManager.toggle();
+    return window.themeManager?.toggleTheme();
 }
-
 function setTheme(theme) {
-    themeManager.setTheme(theme);
+    window.themeManager?.setTheme(theme);
 }
-
 function getCurrentTheme() {
-    return themeManager.getCurrentTheme();
+    return window.themeManager?.getCurrentTheme();
 }
-
 function isDarkTheme() {
-    return themeManager.isDark();
+    return window.themeManager?.isDark();
 }
-
 function isLightTheme() {
-    return themeManager.isLight();
+    return window.themeManager?.isLight();
 }
-
-// Make available globally
-if (typeof window !== 'undefined') {
-    window.themeManager = themeManager;
-    window.toggleTheme = toggleTheme;
-    window.setTheme = setTheme;
-    window.getCurrentTheme = getCurrentTheme;
-    window.isDarkTheme = isDarkTheme;
-    window.isLightTheme = isLightTheme;
-}
-
-// For Node.js environments
+// Export for Node.js if needed
 if (typeof module !== 'undefined') {
     module.exports = { 
-        ThemeManager, 
-        themeManager, 
-        toggleTheme, 
-        setTheme, 
-        getCurrentTheme, 
-        isDarkTheme, 
-        isLightTheme 
+        UnifiedThemeManager,
+        toggleTheme,
+        setTheme,
+        getCurrentTheme,
+        isDarkTheme,
+        isLightTheme
     };
 }

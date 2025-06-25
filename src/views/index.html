@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>UIT APP - Image Analysis for Testing</title>
+    <title>SnapScene APP - Image Analysis for Testing</title>
     <link rel="stylesheet" href="styles.css">
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
@@ -130,12 +130,27 @@
         </section>
 
         <!-- History Section -->
-        <section class="card" id="historyCard" style="display: none;">
-            <h2>📜 Recent Analysis History</h2>
+        <section class="card" id="historyCard">
+            <div class="history-header">
+                <h2>📄 Analysis History</h2>
+                <div class="history-controls">
+                    <select id="historyLimit" class="history-limit-select">
+                        <option value="5" selected>5 entries</option>
+                        <option value="10">10 entries</option>
+                        <option value="50">50 entries</option>
+                        <option value="100">100 entries</option>
+                    </select>
+                    <button id="clearHistoryBtn" class="history-clear-btn" title="Clear all history">🗑️</button>
+                </div>
+            </div>
             <div id="historyList" class="history-list"></div>
         </section>
     </main>
 
+    <!-- Load all dependencies -->
+    <script src="../utils/storage.js"></script>
+    <script src="../utils/notifications.js"></script>
+    <script src="../js/themeManager.js"></script>
     <script src="../js/renderer.js"></script>
 </body>
 </html>

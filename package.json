@@ -1,58 +1,173 @@
 {
-  "name": "snapscene-app",
-  "version": "1.0.0",
-  "description": "UIT APP - Intelligent image analysis for software testing with Google Gemini",
+  "name": "snapscene",
+  "version": "0.2.0",
+  "description": "AI-powered image analysis for software testing",
   "main": "index.js",
+  "author": "khaimed",
+  "license": "MIT",
+  "homepage": "https://github.com/khaimed/snapscene-app",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/khaimed/snapscene-app.git"
+  },
   "scripts": {
     "start": "electron .",
     "dev": "electron . --dev",
     "build": "electron-builder",
-    "clean": "rimraf dist node_modules package-lock.json",
-    "reinstall": "npm run clean && npm install"
-  },
-  "keywords": [
-    "electron",
-    "image-analysis", 
-    "testing",
-    "ai",
-    "gemini",
-    "software-testing"
-  ],
-  "author": "Your Name",
-  "license": "MIT",
-  "engines": {
-    "node": ">=16.0.0"
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux",
+    "build:all": "echo 'Use build:safe for cross-platform builds'",
+    "build:safe": "node build-script.js",
+    "dist": "npm run build:safe",
+    "pack": "electron-builder --dir",
+    "postinstall": "electron-builder install-app-deps"
   },
   "devDependencies": {
-    "electron": "^32.0.0",
-    "electron-builder": "^24.0.0"
+    "electron": "^28.0.0"
   },
   "dependencies": {
-    "@google/generative-ai": "^0.21.0",
-    "marked": "^15.0.7"
+    "@google/generative-ai": "^0.2.1"
   },
   "build": {
-    "appId": "com.uitapp.desktop",
-    "productName": "UIT APP",
+    "appId": "com.khaimed.snapscene",
+    "productName": "SnapScene",
+    "copyright": "Copyright © 2024 khaimed",
     "directories": {
+      "buildResources": "build",
       "output": "dist"
     },
     "files": [
-      "index.js",
-      "src/**/*",
-      "package.json"
+      "**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}",
+      "!src/**/*.{ts,js}.map",
+      "!dist",
+      "!build"
     ],
+    "extraMetadata": {
+      "main": "index.js"
+    },
     "win": {
-      "target": "nsis",
-      "icon": "assets/icon.ico"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "publisherName": "KhAiMed",
+      "verifyUpdateCodeSignature": false
     },
     "mac": {
-      "target": "dmg",
-      "icon": "assets/icon.icns"
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
     },
     "linux": {
-      "target": "AppImage",
-      "icon": "assets/icon.png"
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "rpm",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "tar.gz",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "category": "Development",
+      "desktop": {
+        "StartupNotify": "true",
+        "MimeType": "x-scheme-handler/snapscene"
+      }
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "SnapScene"
+    },
+    "dmg": {
+      "title": "SnapScene Installer",
+      "backgroundColor": "#ffffff",
+      "window": {
+        "width": 540,
+        "height": 380
+      },
+      "contents": [
+        {
+          "x": 410,
+          "y": 230,
+          "type": "link",
+          "path": "/Applications"
+        },
+        {
+          "x": 130,
+          "y": 230,
+          "type": "file"
+        }
+      ]
+    },
+    "publish": {
+      "provider": "github",
+      "owner": "khaimed",
+      "repo": "snapscene"
     }
   }
 }

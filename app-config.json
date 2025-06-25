@@ -1,0 +1,22 @@
+{
+  "api": {
+    "key": "",
+    "model": "gemini-2.5-flash"
+  },
+  "app": {
+    "theme": "dark",
+    "windowBounds": {
+      "x": 0,
+      "y": 0,
+      "width": 1920,
+      "height": 1152
+    }
+  },
+  "analysis": {
+    "defaultTestType": "general",
+    "responseLanguage": "fr",
+    "detailLevel": "detailed"
+  },
+  "version": "0.1.0",
+  "lastModified": "2025-06-24T18:02:34.682Z"
+}

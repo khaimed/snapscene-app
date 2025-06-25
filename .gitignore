@@ -10,6 +10,10 @@
 
 # production
 /build
+build.bat
+build.sh
+build-script.js
+/dist
 
 # misc
 .DS_Store
@@ -21,3 +25,5 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+SETUP.md
