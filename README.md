@@ -1,4 +1,4 @@
-# 📸 SnapScene App v0.1.0
+# 📸 SnapScene App v0.2.0
 
 **Transform your screenshots into comprehensive testing strategies with AI**
 
